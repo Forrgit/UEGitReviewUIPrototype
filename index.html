@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Pull Request Review UI</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; margin: 0; padding: 0; }
+        .container { display: flex; height: 100vh; }
+        
+        /* Левая панель коммитов */
+        .commit-list {
+            width: 25%;
+            padding: 20px;
+            background-color: #e9ecef;
+            overflow-y: auto;
+        }
+        .commit-list h3 { margin-top: 0; }
+        .commit-list ul { list-style: none; padding: 0; }
+        .commit-list li { padding: 10px; cursor: pointer; border-bottom: 1px solid #ccc; }
+        .commit-list li.selected { background-color: #d3d9de; }
+        .commit-list li:hover { background-color: #c8ced3; }
+        .button { padding: 10px 15px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 5px; }
+        .button:hover { background-color: #0056b3; }
+        
+        /* Правая панель с изменёнными файлами и фильтром */
+        .file-viewer {
+            width: 75%;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        .filter-section, .file-tree-section, .commit-info, .pr-info {
+            margin-bottom: 20px;
+        }
+        .filter-section select { padding: 5px; }
+        .file-tree-section { flex-grow: 1; overflow-y: auto; }
+        .file-tree-section ul { list-style: none; padding-left: 20px; }
+        .file-tree-section li { cursor: pointer; padding-left: 20px; }
+        .file-tree-section li.selected { background-color: #d3d9de; }
+
+        /* Окно информации о коммите и пул-реквесте */
+        .commit-info, .pr-info { padding: 15px; background-color: #e9ecef; border-radius: 5px; }
+        .commit-info h4, .pr-info h4 { margin-top: 0; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Левая панель: Список коммитов и выбор пул-реквеста -->
+    <div class="commit-list">
+        <!-- Выбор пул-реквеста -->
+        <div class="pr-selection">
+            <h3>Выбор пул-реквеста</h3>
+            <select id="pullRequestSelector" onchange="displayPullRequestInfo()">
+                <option value="">Выберите пул-реквест</option>
+                <option value="1" data-name="Фикс багов" data-author="Ivan Petrov" data-branch="feature/bug-fix" data-base="main">#1 Фикс багов</option>
+                <option value="2" data-name="Оптимизация" data-author="Anna Ivanova" data-branch="feature/optimization" data-base="main">#2 Оптимизация</option>
+                <!-- Добавьте другие пул-реквесты по мере необходимости -->
+            </select>
+        </div>
+
+        <!-- Информация о выбранном пул-реквесте -->
+        <div class="pr-info" id="prInfo">
+            <h4>Информация о пул-реквесте</h4>
+            <p>Выберите пул-реквест, чтобы увидеть его детали.</p>
+        </div>
+
+        <h3>Список коммитов</h3>
+        <ul id="commitList">
+            <li onclick="toggleCommitSelection(event, this, 'Коммит 1')">Коммит 1 - Сообщение коммита</li>
+            <li onclick="toggleCommitSelection(event, this, 'Коммит 2')">Коммит 2 - Сообщение коммита</li>
+            <li onclick="toggleCommitSelection(event, this, 'Коммит 3')">Коммит 3 - Добавлен новый функционал</li>
+            <li onclick="toggleCommitSelection(event, this, 'Коммит 4')">Коммит 4 - Исправлены ошибки</li>
+            <li onclick="toggleCommitSelection(event, this, 'Коммит 5')">Коммит 5 - Оптимизация производительности</li>
+            <!-- Добавьте другие коммиты по мере необходимости -->
+        </ul>
+        <button class="button" onclick="resetCommitSelection()">Сбросить выбор коммитов</button>
+    </div>
+
+    <!-- Правая панель: Файлы, фильтр и информация о коммите -->
+    <div class="file-viewer">
+        
+        <!-- Фильтр по типу файла и кнопка показа диффа -->
+        <div class="filter-section">
+            <label for="fileTypeSelector">Фильтр по расширению файлов:</label>
+            <select id="fileTypeSelector" onchange="filterFilesByType()">
+                <option value="">Все</option>
+                <option value=".cpp">C++ (.cpp)</option>
+                <option value=".md">Markdown (.md)</option>
+                <!-- Добавьте другие расширения по необходимости -->
+            </select>
+        </div>
+
+        <!-- Кнопки для управления файлами -->
+        <div class="button-container">
+            <button class="button" onclick="showSelectedFileDiff()">Показать дифф выбранного файла</button>
+            <button class="button" onclick="downloadAllDiffs()">Загрузить все диффы</button>
+        </div>
+
+        <!-- Древовидный список изменённых файлов -->
+        <div class="file-tree-section">
+            <h3>Изменённые файлы</h3>
+            <ul class="tree-view" id="fileTree">
+                <li onclick="toggleFileSelection(event, this, 'src/')">src/
+                    <ul>
+                        <li onclick="toggleFileSelection(event, this, 'src/main.cpp')">main.cpp</li>
+                        <li onclick="toggleFileSelection(event, this, 'src/utils/')">utils/
+                            <ul>
+                                <li onclick="toggleFileSelection(event, this, 'src/utils/helper.cpp')">helper.cpp</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+                <li onclick="toggleFileSelection(event, this, 'README.md')">README.md</li>
+                <!-- Добавьте другие файлы по мере необходимости -->
+            </ul>
+        </div>
+
+        <!-- Окно с информацией о коммите -->
+        <div class="commit-info" id="commitInfo">
+            <h4>Информация о коммите</h4>
+            <p>Выберите коммит для отображения подробной информации.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Скрипты для управления UI -->
+<script>
+    const selectedCommits = new Set();
+    const selectedFiles = new Set();
+
+    function toggleCommitSelection(event, element, commit) {
+        if (event.ctrlKey) {
+            // Мультиселект при зажатой клавише Ctrl
+            if (selectedCommits.has(commit)) {
+                selectedCommits.delete(commit);
+                element.classList.remove('selected');
+            } else {
+                selectedCommits.add(commit);
+                element.classList.add('selected');
+            }
+        } else {
+            // Одинарный выбор при обычном клике
+            resetCommitSelection();
+            selectedCommits.add(commit);
+            element.classList.add('selected');
+        }
+        updateCommitInfo();
+    }
+
+    function resetCommitSelection() {
+        selectedCommits.clear();
+        const commitElements = document.querySelectorAll('#commitList li');
+        commitElements.forEach(el => el.classList.remove('selected'));
+        updateCommitInfo();
+    }
+
+    function updateCommitInfo() {
+        const commitInfo = document.getElementById('commitInfo');
+        if (selectedCommits.size === 0) {
+            commitInfo.innerHTML = '<h4>Информация о коммите</h4><p>Выберите коммит для отображения подробной информации.</p>';
+        } else {
+            commitInfo.innerHTML = '<h4>Выбранные коммиты:</h4><p>' + Array.from(selectedCommits).join(', ') + '</p>';
+        }
+    }
+
+    function toggleFileSelection(event, element, file) {
+        if (event.ctrlKey) {
+            // Мультиселект при зажатой клавише Ctrl
+            if (selectedFiles.has(file)) {
+                selectedFiles.delete(file);
+                element.classList.remove('selected');
+            } else {
+                selectedFiles.add(file);
+                element.classList.add('selected');
+            }
+        } else {
+            // Одинарный выбор при обычном клике
+            resetFileSelection();
+            selectedFiles.add(file);
+            element.classList.add('selected');
+        }
+    }
+
+    function resetFileSelection() {
+        selectedFiles.clear();
+        const fileElements = document.querySelectorAll('#fileTree li');
+        fileElements.forEach(el => el.classList.remove('selected'));
+    }
+
+    function showSelectedFileDiff() {
+        if (selectedFiles.size === 0) {
+            alert('Выберите хотя бы один файл для показа диффа');
+        } else {
+            alert('Показать дифф для файлов: ' + Array.from(selectedFiles).join(', '));
+            // Здесь добавить логику показа диффа для выбранных файлов
+        }
+    }
+
+    function downloadAllDiffs() {
+        alert('Загрузка всех диффов...');
+        // Логика для загрузки всех диффов
+    }
+
+    function filterFilesByType() {
+        const selector = document.getElementById('fileTypeSelector');
+        const fileType = selector.value;
+        const files = document.querySelectorAll('.tree-view li');
+
+        files.forEach(file => {
+            if (fileType && !file.textContent.endsWith(fileType)) {
+                file.style.display = 'none';
+            } else {
+                file.style.display = 'list-item';
+            }
+        });
+    }
+
+    function displayPullRequestInfo() {
+        const selector = document.getElementById('pullRequestSelector');
+        const selectedOption = selector.options[selector.selectedIndex];
+        if (selectedOption.value) {
+            const prInfo = document.getElementById('prInfo');
+            prInfo.innerHTML = `<h4>Информация о пул-реквесте</h4>
+                <p>Номер: ${selectedOption.value}</p>
+                <p>Название: ${selectedOption.getAttribute('data-name')}</p>
+                <p>Автор: ${selectedOption.getAttribute('data-author')}</p>
+                <p>Ветка: ${selectedOption.getAttribute('data-branch')}</p>
+                <p>Базовая ветка: ${selectedOption.getAttribute('data-base')}</p>`;
+        }
+    }
+</script>
+
+</body>
+</html>
