@@ -33,8 +33,47 @@
         .filter-section, .file-tree-section, .commit-info, .pr-info {
             margin-bottom: 20px;
         }
-        .filter-section select { padding: 5px; }
-        .file-tree-section { flex-grow: 1; overflow-y: auto; }
+        
+        /* Стиль фильтра */
+        .filter-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .filter-button {
+            padding: 10px;
+            border: 1px solid #ccc;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            min-width: 200px;
+            border-radius: 5px;
+            z-index: 1;
+        }
+
+        .filter-dropdown:hover .dropdown-content {
+            display: block;
+        }
+
+        .dropdown-content label {
+            display: block;
+            padding: 5px 0;
+            cursor: pointer;
+        }
+
+        .dropdown-content label input {
+            margin-right: 8px;
+        }
+
         .file-tree-section ul { list-style: none; padding-left: 20px; }
         .file-tree-section li { cursor: pointer; padding-left: 20px; }
         .file-tree-section li.selected { background-color: #d3d9de; }
@@ -81,15 +120,17 @@
     <!-- Правая панель: Файлы, фильтр и информация о коммите -->
     <div class="file-viewer">
         
-        <!-- Фильтр по типу файла и кнопка показа диффа -->
+        <!-- Фильтр по типу файла с мультиселекцией и кнопка показа диффа -->
         <div class="filter-section">
-            <label for="fileTypeSelector">Фильтр по расширению файлов:</label>
-            <select id="fileTypeSelector" onchange="filterFilesByType()">
-                <option value="">Все</option>
-                <option value=".cpp">C++ (.cpp)</option>
-                <option value=".md">Markdown (.md)</option>
-                <!-- Добавьте другие расширения по необходимости -->
-            </select>
+            <div class="filter-dropdown">
+                <button class="filter-button">Фильтр по расширению файлов</button>
+                <div class="dropdown-content">
+                    <label><input type="checkbox" value=".bnk" onchange="toggleExtension('.bnk')" checked> .bnk (15)</label>
+                    <label><input type="checkbox" value=".json" onchange="toggleExtension('.json')" checked> .json (15)</label>
+                    <label><input type="checkbox" value=".txt" onchange="toggleExtension('.txt')" checked> .txt (6)</label>
+                    <label><input type="checkbox" value=".uasset" onchange="toggleExtension('.uasset')" checked> .uasset (3)</label>
+                </div>
+            </div>
         </div>
 
         <!-- Кнопки для управления файлами -->
@@ -125,10 +166,11 @@
     </div>
 </div>
 
-<!-- Скрипты для управления UI -->
+<!-- Скрипты -->
 <script>
     const selectedCommits = new Set();
     const selectedFiles = new Set();
+    const selectedExtensions = new Set(['.bnk', '.json', '.txt', '.uasset']); // Изначально все типы файлов выбраны
 
     function toggleCommitSelection(event, element, commit) {
         if (event.ctrlKey) {
@@ -203,18 +245,25 @@
         // Логика для загрузки всех диффов
     }
 
-    function filterFilesByType() {
-        const selector = document.getElementById('fileTypeSelector');
-        const fileType = selector.value;
-        const files = document.querySelectorAll('.tree-view li');
+    function toggleExtension(extension) {
+        if (selectedExtensions.has(extension)) {
+            selectedExtensions.delete(extension);
+        } else {
+            selectedExtensions.add(extension);
+        }
+        filterFiles();
+    }
 
-        files.forEach(file => {
-            if (fileType && !file.textContent.endsWith(fileType)) {
-                file.style.display = 'none';
-            } else {
+    function filterFiles() {
+        const fileList = document.getElementById('fileTree').getElementsByTagName('li');
+        for (let file of fileList) {
+            const fileExtension = file.getAttribute('data-extension');
+            if (fileExtension && selectedExtensions.has(fileExtension)) {
                 file.style.display = 'list-item';
+            } else if (fileExtension) {
+                file.style.display = 'none';
             }
-        });
+        }
     }
 
     function displayPullRequestInfo() {
